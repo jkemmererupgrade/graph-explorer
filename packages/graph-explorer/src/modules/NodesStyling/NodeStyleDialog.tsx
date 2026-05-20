@@ -10,6 +10,7 @@ import {
   FieldLabel,
   FieldSet,
   FileButton,
+  IconPicker,
   Input,
   Select,
   SelectContent,
@@ -208,10 +209,17 @@ function Content({ vertexType }: { vertexType: VertexType }) {
                 <Field>
                   <FieldLabel>Icon</FieldLabel>
                   <div className="flex flex-row items-center gap-2">
+                    <IconPicker
+                      onSelect={(iconUrl, iconImageType) =>
+                        setVertexStyle({ iconUrl, iconImageType })
+                      }
+                    />
                     <FileButton
                       accept="image/*"
                       onChange={file => {
-                        file && convertImageToBase64AndSetNewIcon(file);
+                        if (file) {
+                          convertImageToBase64AndSetNewIcon(file);
+                        }
                       }}
                       variant="outline"
                       className="rounded-full"

@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+import { useAtomValue } from "jotai";
 import { act } from "react";
 
 import { createEdgeType, createVertexType } from "@/core";
@@ -6,9 +8,12 @@ import { DbState, renderHookWithState } from "@/utils/testing";
 import {
   defaultEdgePreferences,
   defaultVertexPreferences,
+  edgePreferencesAtom,
   type EdgePreferencesStorageModel,
+  mergeDefaultsIntoUserStyling,
   useEdgeStyling,
   useVertexStyling,
+  vertexPreferencesAtom,
   type VertexPreferencesStorageModel,
 } from "./userPreferences";
 
@@ -339,6 +344,172 @@ describe("useEdgeStyling", () => {
   });
 });
 
+describe("default styling", () => {
+  it("should apply default styling when no user pref exists", () => {
+    const dbState = new DbState();
+    dbState.setDefaultStyling({
+      vertices: [
+        { type: createVertexType("test"), color: "red", shape: "diamond" },
+      ],
+    });
+
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    expect(result.current.vertexStyle.color).toBe("red");
+    expect(result.current.vertexStyle.shape).toBe("diamond");
+  });
+
+  it("should let user prefs override default styling", () => {
+    const dbState = new DbState();
+    dbState.setDefaultStyling({
+      vertices: [
+        { type: createVertexType("test"), color: "red", shape: "diamond" },
+      ],
+    });
+    dbState.addVertexStyle(createVertexType("test"), { color: "blue" });
+
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    // User pref overrides default styling color
+    expect(result.current.vertexStyle.color).toBe("blue");
+    // Default styling shape still applies since user didn't override it
+    expect(result.current.vertexStyle.shape).toBe("diamond");
+  });
+
+  it("should reveal default styling after reset", () => {
+    const dbState = new DbState();
+    dbState.setDefaultStyling({
+      vertices: [{ type: createVertexType("test"), color: "red" }],
+    });
+    dbState.addVertexStyle(createVertexType("test"), { color: "blue" });
+
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    expect(result.current.vertexStyle.color).toBe("blue");
+
+    act(() => result.current.resetVertexStyle());
+
+    // After reset, default styling color should be visible
+    expect(result.current.vertexStyle.color).toBe("red");
+  });
+
+  it("should fall through to hardcoded defaults when no default styling", () => {
+    const dbState = new DbState();
+    // No default styling set
+
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    expect(result.current.vertexStyle).toStrictEqual(
+      createExpectedVertex({ type: createVertexType("test") }),
+    );
+  });
+
+  it("should apply default edge styling", () => {
+    const dbState = new DbState();
+    dbState.setDefaultStyling({
+      edges: [
+        { type: createEdgeType("test"), lineColor: "green", lineThickness: 5 },
+      ],
+    });
+
+    const { result } = renderHookWithState(
+      () => useEdgeStyling(createEdgeType("test")),
+      dbState,
+    );
+
+    expect(result.current.edgeStyle.lineColor).toBe("green");
+    expect(result.current.edgeStyle.lineThickness).toBe(5);
+  });
+
+  it("should let user edge prefs override default edge styling", () => {
+    const dbState = new DbState();
+    dbState.setDefaultStyling({
+      edges: [
+        { type: createEdgeType("test"), lineColor: "green", lineThickness: 5 },
+      ],
+    });
+    dbState.addEdgeStyle(createEdgeType("test"), { lineColor: "red" });
+
+    const { result } = renderHookWithState(
+      () => useEdgeStyling(createEdgeType("test")),
+      dbState,
+    );
+
+    expect(result.current.edgeStyle.lineColor).toBe("red");
+    expect(result.current.edgeStyle.lineThickness).toBe(5);
+  });
+});
+
+describe("mergeDefaultsIntoUserStyling", () => {
+  it("should add default types when user has none", () => {
+    const result = mergeDefaultsIntoUserStyling(
+      {},
+      {
+        vertices: [{ type: createVertexType("A"), color: "red" }],
+        edges: [{ type: createEdgeType("B"), lineColor: "green" }],
+      },
+    );
+    expect(result.vertices).toHaveLength(1);
+    expect(result.vertices![0].color).toBe("red");
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges![0].lineColor).toBe("green");
+  });
+
+  it("should merge properties when user has partial override", () => {
+    const result = mergeDefaultsIntoUserStyling(
+      {
+        vertices: [{ type: createVertexType("A"), color: "blue" }],
+      },
+      {
+        vertices: [
+          { type: createVertexType("A"), color: "red", shape: "diamond" },
+        ],
+      },
+    );
+    expect(result.vertices).toHaveLength(1);
+    expect(result.vertices![0].color).toBe("blue"); // user wins
+    expect(result.vertices![0].shape).toBe("diamond"); // default fills in
+  });
+
+  it("should not modify types not in defaults", () => {
+    const result = mergeDefaultsIntoUserStyling(
+      {
+        vertices: [{ type: createVertexType("A"), color: "blue" }],
+        edges: [{ type: createEdgeType("X"), lineColor: "red" }],
+      },
+      {
+        vertices: [{ type: createVertexType("B"), color: "green" }],
+      },
+    );
+    expect(result.vertices).toHaveLength(2);
+    expect(result.vertices![0].color).toBe("blue");
+    expect(result.vertices![1].color).toBe("green");
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges![0].lineColor).toBe("red");
+  });
+
+  it("should handle empty defaults", () => {
+    const input = {
+      vertices: [{ type: createVertexType("A"), color: "blue" }],
+    };
+    const result = mergeDefaultsIntoUserStyling(input, {});
+    expect(result.vertices).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
+});
+
 describe("useDeferredAtom integration", () => {
   it("should handle multiple rapid updates correctly", () => {
     const dbState = new DbState();
@@ -391,6 +562,68 @@ describe("useDeferredAtom integration", () => {
         color: "red",
         borderColor: "blue",
       }),
+    );
+  });
+});
+
+describe("vertexPreferencesAtom", () => {
+  it("should return stored preferences for a known type", () => {
+    const dbState = new DbState();
+    const vertexType = createVertexType("Person");
+    dbState.addVertexStyle(vertexType, { color: "#ff0000" });
+
+    const { result } = renderHookWithState(
+      () => useAtomValue(vertexPreferencesAtom),
+      dbState,
+    );
+
+    expect(result.current.get(vertexType)).toStrictEqual(
+      createExpectedVertex({ type: vertexType, color: "#ff0000" }),
+    );
+  });
+
+  it("should return defaults for an unknown type", () => {
+    const dbState = new DbState();
+    const vertexType = createVertexType("Unknown");
+
+    const { result } = renderHookWithState(
+      () => useAtomValue(vertexPreferencesAtom),
+      dbState,
+    );
+
+    expect(result.current.get(vertexType)).toStrictEqual(
+      createExpectedVertex({ type: vertexType }),
+    );
+  });
+});
+
+describe("edgePreferencesAtom", () => {
+  it("should return stored preferences for a known type", () => {
+    const dbState = new DbState();
+    const edgeType = createEdgeType("KNOWS");
+    dbState.addEdgeStyle(edgeType, { lineColor: "#00ff00" });
+
+    const { result } = renderHookWithState(
+      () => useAtomValue(edgePreferencesAtom),
+      dbState,
+    );
+
+    expect(result.current.get(edgeType)).toStrictEqual(
+      createExpectedEdge({ type: edgeType, lineColor: "#00ff00" }),
+    );
+  });
+
+  it("should return defaults for an unknown type", () => {
+    const dbState = new DbState();
+    const edgeType = createEdgeType("Unknown");
+
+    const { result } = renderHookWithState(
+      () => useAtomValue(edgePreferencesAtom),
+      dbState,
+    );
+
+    expect(result.current.get(edgeType)).toStrictEqual(
+      createExpectedEdge({ type: edgeType }),
     );
   });
 });

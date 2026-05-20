@@ -9,6 +9,7 @@ import DEFAULT_ICON_URL from "@/utils/defaultIconUrl";
 
 import type { EdgeType, VertexType } from "../entities";
 
+import { defaultStylingAtom } from "./defaultStylingAtom";
 import { useActiveSchema } from "./schema";
 import { userStylingAtom } from "./storageAtoms";
 
@@ -158,19 +159,72 @@ export type UserStyling = {
   edges?: Array<EdgePreferencesStorageModel>;
 };
 
-/** Get the stored user preferences for vertices and edges in a fast lookup Map. */
-function useStoredGraphPreferences() {
-  const graphPreferences = useAtomValue(userStylingAtom);
-  const vertices = new Map(
-    graphPreferences.vertices?.map(v => [v.type, v]) ?? [],
-  );
-  const edges = new Map(graphPreferences.edges?.map(e => [e.type, e]) ?? []);
-  const result = { vertices, edges };
-  const deferredResult = useDeferredValue(result);
-  return deferredResult;
+/**
+ * Merges default styling from defaultStyling.json into user styling.
+ * Default values fill in properties the user hasn't explicitly set;
+ * existing user overrides win via spread order.
+ */
+export function mergeDefaultsIntoUserStyling(
+  userStyling: UserStyling,
+  defaults: UserStyling,
+): UserStyling {
+  const vertices = [...(userStyling.vertices ?? [])];
+  for (const v of defaults.vertices ?? []) {
+    const existingIndex = vertices.findIndex(e => e.type === v.type);
+    if (existingIndex >= 0) {
+      vertices[existingIndex] = { ...v, ...vertices[existingIndex] };
+    } else {
+      vertices.push(v);
+    }
+  }
+
+  const edges = [...(userStyling.edges ?? [])];
+  for (const e of defaults.edges ?? []) {
+    const existingIndex = edges.findIndex(x => x.type === e.type);
+    if (existingIndex >= 0) {
+      edges[existingIndex] = { ...e, ...edges[existingIndex] };
+    } else {
+      edges.push(e);
+    }
+  }
+
+  return { vertices, edges };
 }
 
-/** Combines the stored user preferences with the defined default values. */
+/** Vertex preferences indexed by type for O(1) lookup with default fallback. */
+export const vertexPreferencesAtom = atom(get => {
+  const userStyling = get(userStylingAtom);
+  const lookup = new Map(
+    userStyling.vertices?.map(v => [
+      v.type,
+      createVertexPreference(v.type, v),
+    ]) ?? [],
+  );
+  return {
+    get(type: VertexType) {
+      return lookup.get(type) ?? createVertexPreference(type);
+    },
+  };
+});
+
+/** Edge preferences indexed by type for O(1) lookup with default fallback. */
+export const edgePreferencesAtom = atom(get => {
+  const userStyling = get(userStylingAtom);
+  const lookup = new Map(
+    userStyling.edges?.map(e => [e.type, createEdgePreference(e.type, e)]) ??
+      [],
+  );
+  return {
+    get(type: EdgeType) {
+      return lookup.get(type) ?? createEdgePreference(type);
+    },
+  };
+});
+
+/**
+ * Combines hardcoded defaults with user preferences.
+ * User preferences include values populated from defaultStyling.json on load.
+ */
 export function createVertexPreference(
   type: VertexType,
   stored?: VertexPreferencesStorageModel,
@@ -182,7 +236,10 @@ export function createVertexPreference(
   } as const;
 }
 
-/** Combines the stored user preferences with the defined default values. */
+/**
+ * Combines hardcoded defaults with user preferences.
+ * User preferences include values populated from defaultStyling.json on load.
+ */
 export function createEdgePreference(
   type: EdgeType,
   stored?: EdgePreferencesStorageModel,
@@ -196,22 +253,16 @@ export function createEdgePreference(
 
 /** Returns an array of vertex preferences based on the known vertex types in the schema. */
 export function useAllVertexPreferences(): VertexPreferences[] {
-  const { vertices: allPreferences } = useStoredGraphPreferences();
+  const prefs = useAtomValue(vertexPreferencesAtom);
   const { vertices: allSchemas } = useActiveSchema();
-
-  return allSchemas.map(({ type }) =>
-    createVertexPreference(type, allPreferences.get(type)),
-  );
+  return allSchemas.map(({ type }) => prefs.get(type));
 }
 
 /** Returns an array of edge preferences based on the known edge types in the schema. */
 export function useAllEdgePreferences(): EdgePreferences[] {
-  const { edges: allPreferences } = useStoredGraphPreferences();
+  const prefs = useAtomValue(edgePreferencesAtom);
   const { edges: allSchemas } = useActiveSchema();
-
-  return allSchemas.map(({ type }) =>
-    createEdgePreference(type, allPreferences.get(type)),
-  );
+  return allSchemas.map(({ type }) => prefs.get(type));
 }
 
 /** Returns the user preferences for the specified vertex type. */
@@ -228,22 +279,14 @@ export function useEdgePreferences(type: EdgeType): EdgePreferences {
  * Returns the user preferences for the specified vertex type.
  */
 export const vertexPreferenceByTypeAtom = atomFamily((type: VertexType) =>
-  atom(get => {
-    const userStyling = get(userStylingAtom);
-    const stored = userStyling.vertices?.find(v => v.type === type);
-    return createVertexPreference(type, stored);
-  }),
+  atom(get => get(vertexPreferencesAtom).get(type)),
 );
 
 /**
  * Returns the user preferences for the specified edge type.
  */
 export const edgePreferenceByTypeAtom = atomFamily((type: EdgeType) =>
-  atom(get => {
-    const userStyling = get(userStylingAtom);
-    const stored = userStyling.edges?.find(e => e.type === type);
-    return createEdgePreference(type, stored);
-  }),
+  atom(get => get(edgePreferencesAtom).get(type)),
 );
 
 type UpdatedVertexStyle = Partial<Omit<VertexPreferences, "type">>;
@@ -256,6 +299,7 @@ type UpdatedVertexStyle = Partial<Omit<VertexPreferences, "type">>;
  */
 export function useVertexStyling(type: VertexType) {
   const setAllStyling = useSetAtom(userStylingAtom);
+  const defaultStyling = useAtomValue(defaultStylingAtom);
   const vertexStyle = useVertexPreferences(type);
 
   const setVertexStyle = (updatedStyle: UpdatedVertexStyle) =>
@@ -279,9 +323,17 @@ export function useVertexStyling(type: VertexType) {
 
   const resetVertexStyle = () =>
     setAllStyling(prev => {
+      // Restore from defaultStyling.json if available, otherwise remove entirely
+      // (which falls back to hardcoded defaults)
+      const defaultForType = defaultStyling?.vertices?.find(
+        v => v.type === type,
+      );
+      const withoutCurrent = prev.vertices?.filter(v => v.type !== type) ?? [];
       return {
         ...prev,
-        vertices: prev.vertices?.filter(v => v.type !== type),
+        vertices: defaultForType
+          ? [...withoutCurrent, defaultForType]
+          : withoutCurrent,
       };
     });
 
@@ -302,6 +354,7 @@ type UpdatedEdgeStyle = Omit<EdgePreferencesStorageModel, "type">;
  */
 export function useEdgeStyling(type: EdgeType) {
   const setAllStyling = useSetAtom(userStylingAtom);
+  const defaultStyling = useAtomValue(defaultStylingAtom);
   const edgeStyle = useEdgePreferences(type);
 
   const setEdgeStyle = (updatedStyle: UpdatedEdgeStyle) =>
@@ -325,9 +378,15 @@ export function useEdgeStyling(type: EdgeType) {
 
   const resetEdgeStyle = () =>
     setAllStyling(prev => {
+      // Restore from defaultStyling.json if available, otherwise remove entirely
+      // (which falls back to hardcoded defaults)
+      const defaultForType = defaultStyling?.edges?.find(e => e.type === type);
+      const withoutCurrent = prev.edges?.filter(e => e.type !== type) ?? [];
       return {
         ...prev,
-        edges: prev.edges?.filter(v => v.type !== type),
+        edges: defaultForType
+          ? [...withoutCurrent, defaultForType]
+          : withoutCurrent,
       };
     });
 

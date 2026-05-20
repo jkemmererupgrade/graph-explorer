@@ -1,172 +1,116 @@
 # Getting Started
 
-This project contains the code needed to create a Docker image of the Graph Explorer. The image will create the Graph Explorer application and proxy server that will be served over the standard HTTP or HTTPS ports (HTTPS by default).
+A hands-on tutorial that walks you through Graph Explorer using the air routes sample dataset. By the end, you will have searched for airports, explored connections between them, filtered the graph, styled nodes, and viewed data in a table.
 
-The proxy server will be created automatically, but will only be necessary if you are connecting to Neptune. Gremlin-Server and BlazeGraph can be connected to directly. Additionally, the image will create a self-signed certificate that can be optionally used.
-
-## Examples
-
-### Local Docker Setup
-
-The quickest way to get started with Graph Explorer is to use the official Docker image. You can find the latest version of the image on  
-[Amazon's ECR Public Registry](https://gallery.ecr.aws/neptune/graph-explorer).
-
-<!-- prettier-ignore -->
-> [!NOTE]
-> 
-> Make sure to use the version of the image that does not include `sagemaker` in the tag.
-
-#### Prerequisites
+## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) installed on your machine
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) installed on your machine
 
-#### Steps
+## Launch Graph Explorer
 
-1. Authenticate with the Amazon ECR Public Registry. [More information](https://docs.aws.amazon.com/AmazonECR/latest/public/public-registries.html#public-registry-auth)
-
-   ```
-   aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
-   ```
-
-2. Pull down the docker image
-
-   ```
-   docker pull public.ecr.aws/neptune/graph-explorer
-   ```
-
-3. Create and run a docker container using the image
-
-   ```
-   docker run -p 80:80 -p 443:443 \
-    --env HOST=localhost \
-    --name graph-explorer \
-    public.ecr.aws/neptune/graph-explorer
-   ```
-
-   The `HOST` environment variable is used for SSL certificates generation since HTTPS is the default. If you are hosting this on a public domain, you should replace `HOST=localhost` with your domain name.
-
-4. Open a browser and type in the URL of the Graph Explorer server instance
-
-   ```
-   https://localhost/explorer
-   ```
-
-5. You will receive a warning as the SSL certificate used is self-signed. Since the application is set to use HTTPS by default and contains a self-signed certificate, you will need to add the Graph Explorer certificates to the trusted certificates directory and manually trust them. See the [HTTPS Connections](../troubleshooting.md#https-connections) section.
-6. After completing the trusted certification step and refreshing the browser, you should now see the Connections UI. See below description on Connections UI to configure your first connection to Amazon Neptune.
-
-#### Gremlin Server Database
-
-Gremlin Server is an easy way to get started with graph databases. This example will configure a simple Gremlin Server instance to be used with Graph Explorer. It comes with a very small graph dataset.
-
-1. Pull the latest Gremlin Server image from Docker Hub.
-   ```
-   docker pull tinkerpop/gremlin-server:latest
-   ```
-2. Create and run the Gremlin Server container using the HTTP REST modern configuration.
-   ```
-   docker run -p 8182:8182 \
-     --name gremlin-server \
-     tinkerpop/gremlin-server:latest \
-     conf/gremlin-server-rest-modern.yaml
-   ```
-3. Open Graph Explorer and add a new connection
-   - Name: `Gremlin Server`
-   - Query Language: `Gremlin`
-   - Public or Proxy Endpoint: `https://localhost`
-   - Using Proxy Server: `true`
-   - Graph Connection URL: `http://localhost:8182`
-
-## Amazon EC2 Setup
-
-The following instructions detail how to deploy graph-explorer onto an Amazon EC2 instance and use it as a proxy server with SSH tunneling to connect to Amazon Neptune.
-
-<!-- prettier-ignore -->
-> [!NOTE]
-> 
-> This documentation is not an official recommendation on
-network setups as there are many ways to connect to Amazon Neptune from outside
-of the VPC, such as setting up a load balancer or VPC peering.
-
-### Prerequisites
-
-- Provision an Amazon EC2 instance that will be used to host the application and connect to Neptune as a proxy server. For more details, see instructions [here](https://github.com/aws/graph-notebook/tree/main/additional-databases/neptune).
-- Ensure the Amazon EC2 instance can send and receive on ports `22` (SSH), `8182` (Neptune), and `443` or `80` depending on protocol used (graph-explorer).
-
-### Steps
-
-These steps describe how to install Graph Explorer on your Amazon EC2 instance.
-
-1. Open an SSH client and connect to the EC2 instance.
-2. Download and install the necessary command line tools such as [Git](https://git-scm.com/downloads) and [Docker](https://docs.docker.com/get-docker/).
-3. Clone the repository
-   ```
-   git clone https://github.com/aws/graph-explorer.git
-   ```
-4. Navigate to the repository
-   ```
-   cd graph-explorer
-   ```
-5. Build the image
-   ```
-   docker build -t graph-explorer .
-   ```
-
-<!-- prettier-ignore -->
-> [!TIP]
->
-> If you receive an error relating to the docker service not running, run
-> `service docker start`.
-
-4. Run the container substituting the `{hostname-or-ip-address}` with the hostname or IP address of the EC2 instance.
-   ```
-   docker run -p 80:80 -p 443:443 \
-    --env HOST={hostname-or-ip-address} \
-    graph-explorer
-   ```
-5. Navigate to the public URL of your EC2 instance accessing the `/explorer` endpoint. You will receive a warning as the SSL certificate used is self-signed. The URL will look like this:
-   ```
-   https://ec2-1-2-3-4.us-east-1.compute.amazonaws.com/explorer
-   ```
-6. Since the application is set to use HTTPS by default and contains a self-signed certificate, you will need to add the Graph Explorer certificates to the trusted certificates directory and manually trust them. See [HTTPS Connections](../troubleshooting.md#https-connections) section.
-7. After completing the trusted certification step and refreshing the browser, you should now see the Connections UI.
-
-## Local Development Setup
-
-You can build the Docker image locally by following the steps below.
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) installed on your machine
-- [Git](https://git-scm.com/downloads) installed on your machine
-
-### Steps
+The fastest way to try Graph Explorer is with the [Air Routes sample](../../samples/air_routes/README.md). It launches Graph Explorer and a Gremlin Server pre-loaded with sample data using Docker Compose — no database setup or AWS account required.
 
 1. Clone the repository
    ```
    git clone https://github.com/aws/graph-explorer.git
    ```
-2. Navigate to the repository
+2. Navigate to the sample directory and start the containers
    ```
-   cd graph-explorer
+   cd graph-explorer/samples/air_routes
+   docker compose up
    ```
-3. Build the image
-   ```
-   docker build -t graph-explorer .
-   ```
-4. Run the container (HTTPS disabled)
-   ```
-   docker run -p 80:80 \
-     --name graph-explorer \
-     --env PROXY_SERVER_HTTPS_CONNECTION=false \
-     --env GRAPH_EXP_HTTPS_CONNECTION=false \
-     graph-explorer
-   ```
-5. Connect to the Graph Explorer UI
-   ```
-   http://localhost/explorer
-   ```
+3. Open your browser and navigate to [http://localhost:8080/explorer](http://localhost:8080/explorer)
 
-## Troubleshooting
+Graph Explorer opens to the **Graph** page with a default connection already configured and connected to the Gremlin Server with the air routes data. The canvas is empty because no nodes have been added yet.
 
-If the instructions above do not work for you, please see the [Troubleshooting](../troubleshooting.md) page for more information. It contains workarounds for common issues and information on how to diagnose other issues.
+## Tour the UI
+
+Graph Explorer has four main pages, accessible from the navigation bar at the top:
+
+- **Graph** — The main visualization canvas where you explore nodes and edges interactively.
+- **Data Table** — A paginated table view of all nodes in the database, organized by type.
+- **Schema** — A visual overview of the schema showing how node types and edge types relate to each other.
+- **Connections** — Where you manage database connections.
+
+Click **Connections** in the navigation bar to verify the "Default Connection" is active, then click **Graph** to return to the graph view.
+
+On the right side of the graph view, you will see a vertical strip of sidebar icons. These open panels for **Search**, **Details**, **Expand**, **Filters**, and **Node Label Styling**. You will use each of these as you work through the tutorial.
+
+## Search for a Node
+
+1. Click the **Search** icon (magnifying glass) in the right sidebar to open the Search panel.
+2. In the **Node Label** dropdown, select **airport**.
+3. In the **Property** dropdown, select **code**.
+4. In the search text field, type `AUS`.
+5. Click the result for Austin to expand it, then click the **⊕** button to add it to the graph canvas.
+
+The node appears on the canvas. Click it to select it — the **Details** panel opens automatically in the right sidebar, showing its properties like city, country, and coordinates. You can zoom with the scroll wheel and pan by clicking and dragging the background.
+
+## Expand Neighbors
+
+With the Austin airport node on the canvas, let's discover what it connects to.
+
+1. **Double-click** the AUS node on the canvas.
+
+Graph Explorer fetches up to 10 neighbors and adds them to the graph. The number on top of a node shows how many unexpanded neighbors remain. Double-click again to fetch the next batch.
+
+> [!TIP]
+>
+> You can also right-click a node and select **Expand node** from the context
+> menu, or use the **Expand** sidebar panel for more control over which neighbor
+> types to fetch.
+
+## Filter the Graph
+
+As you expand nodes, the graph can get crowded. The Filters panel lets you focus on specific types.
+
+1. Click the **Filters** icon in the right sidebar to open the Entities Filter panel.
+2. You will see two tabs: **Node Labels** and **Edge Labels**. Each tab lists the types currently in the graph with checkboxes.
+3. Try unchecking a node label to hide those nodes from the canvas. Check it again to bring them back.
+
+This does not remove nodes from the graph — it only controls visibility. You can use this to temporarily focus on a subset of the data.
+
+## Table View
+
+You can view the nodes and edges currently on the canvas in a table format without leaving the Graph page.
+
+1. Click the grid icon in the navigation bar to toggle the Table View open.
+2. Use the dropdown to switch between **All Nodes** and **All Edges**.
+3. You can sort, filter, and export the table data to CSV or JSON.
+
+This table only shows what is on the canvas — it is a different view of the same data you have been exploring.
+
+## Style Nodes
+
+You can customize how each node type looks on the canvas.
+
+1. Click the **Node Label Styling** icon in the right sidebar.
+2. Find the **airport** type in the list.
+3. Click **Customize** to open the style dialog.
+4. Change the **Display Name Property** to **code** so each airport shows its IATA code.
+5. Change the **Display Description Property** to **city** to see the city name underneath.
+6. Change the **Node Color** to a color of your choice using the color picker.
+7. Click **Done** to apply.
+
+All airport nodes on the canvas update with the new labels and color. You can also change the shape, border, and icon.
+
+## Switch to the Data Table
+
+The Data Table page lets you browse all nodes in the database without adding them to the graph first.
+
+1. Click **Data Table** in the navigation bar.
+2. The **Node Label** dropdown at the top left is pre-selected to **airport**. Use it to switch to other types like **country** or **continent**.
+3. Browse the paginated table of all airports in the dataset.
+4. To send a specific airport to the graph view, click the **Send to Explorer** button on its row.
+
+## Next Steps
+
+Now that you have explored the basics, here are some directions to go next:
+
+- [Features](../features) — Explore all capabilities in depth
+- [Connecting to databases](../guides#connecting-to-databases) — Connect to Neptune, Gremlin Server, or BlazeGraph
+- [Deployment guides](../guides#deployment) — Deploy with Docker, EC2, ECS Fargate, or SageMaker
+- [Configuration](../references/configuration.md) — Environment variables for application settings and default connections
+- [Development](../development.md) — Build from source for local development
+- [Troubleshooting](../guides/troubleshooting.md) — Common issues and workarounds
+- [Samples](../../samples) — More Docker Compose examples for different configurations
