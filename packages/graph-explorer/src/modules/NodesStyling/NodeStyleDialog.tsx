@@ -113,6 +113,13 @@ function Content({ vertexType }: { vertexType: VertexType }) {
 
   const attributes = displayConfig.attributes;
 
+  // Preview style for the conditional pane: base merged with conditional overrides,
+  // so VertexSymbol shows how the node will look when the condition fires.
+  const conditionalPreviewStyle = {
+    ...vertexStyle,
+    ...rawStyle.conditionalStyle,
+  } as typeof vertexStyle;
+
   const selectOptions = (() => {
     const options = displayConfig.attributes.map(attr => ({
       label: attr.displayLabel,
@@ -407,6 +414,7 @@ function Content({ vertexType }: { vertexType: VertexType }) {
                           });
                         }}
                       />
+                      <VertexSymbol vertexStyle={conditionalPreviewStyle} />
                     </div>
                   </Field>
                 </div>

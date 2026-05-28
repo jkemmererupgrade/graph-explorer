@@ -197,7 +197,9 @@ function createRenderedVertex(
     neighborCount,
   };
   for (const [k, v] of Object.entries(vertex.original.attributes)) {
-    data[`${PROP_PREFIX}${k}`] = v;
+    // Cytoscape selectors can't compare against Date objects — coerce to ISO string
+    // so date conditions like `create_date > "2026-01-01"` work lexicographically.
+    data[`${PROP_PREFIX}${k}`] = v instanceof Date ? v.toISOString() : v;
   }
   return { data };
 }
