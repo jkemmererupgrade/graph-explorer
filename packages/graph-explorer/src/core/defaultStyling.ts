@@ -11,6 +11,57 @@ import type {
 
 import { createEdgeType, createVertexType } from "./entities";
 
+/** Named enum values for vertex shape, shared by base style and conditionalStyle. */
+const ShapeEnumValues = z.enum([
+  "rectangle",
+  "roundrectangle",
+  "ellipse",
+  "triangle",
+  "pentagon",
+  "hexagon",
+  "heptagon",
+  "octagon",
+  "star",
+  "barrel",
+  "diamond",
+  "vee",
+  "rhomboid",
+  "tag",
+  "round-rectangle",
+  "round-triangle",
+  "round-diamond",
+  "round-pentagon",
+  "round-hexagon",
+  "round-heptagon",
+  "round-octagon",
+  "round-tag",
+  "cut-rectangle",
+  "concave-hexagon",
+]);
+
+/** Named enum values for edge arrow style, shared by base style and conditionalStyle. */
+const ArrowStyleEnumValues = z.enum([
+  "triangle",
+  "triangle-tee",
+  "circle-triangle",
+  "triangle-cross",
+  "triangle-backcurve",
+  "tee",
+  "vee",
+  "square",
+  "circle",
+  "diamond",
+  "none",
+]);
+
+const ConditionOperatorSchema = z.enum(["=", "!=", ">", "<", ">=", "<="]);
+
+const StyleConditionSchema = z.object({
+  property: z.string(),
+  operator: ConditionOperatorSchema,
+  value: z.string(),
+});
+
 /** Zod schema for a single vertex style entry in a styling file. */
 const VertexStyleSchema = z
   .object({
@@ -36,34 +87,7 @@ const VertexStyleSchema = z
     /** Which vertex attribute to use as the description. */
     longDisplayNameAttribute: z.string().optional(),
     /** Node shape. */
-    shape: z
-      .enum([
-        "rectangle",
-        "roundrectangle",
-        "ellipse",
-        "triangle",
-        "pentagon",
-        "hexagon",
-        "heptagon",
-        "octagon",
-        "star",
-        "barrel",
-        "diamond",
-        "vee",
-        "rhomboid",
-        "tag",
-        "round-rectangle",
-        "round-triangle",
-        "round-diamond",
-        "round-pentagon",
-        "round-hexagon",
-        "round-heptagon",
-        "round-octagon",
-        "round-tag",
-        "cut-rectangle",
-        "concave-hexagon",
-      ])
-      .optional(),
+    shape: ShapeEnumValues.optional(),
     /** Background opacity (0-1). */
     backgroundOpacity: z.number().min(0).max(1).optional(),
     /** Border width in pixels. */
@@ -72,6 +96,26 @@ const VertexStyleSchema = z
     borderColor: z.string().optional(),
     /** Border line style. */
     borderStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+    /** Optional single condition that activates the secondary style. */
+    condition: StyleConditionSchema.optional(),
+    /** Style overrides applied when condition is met. All fields optional. */
+    conditionalStyle: z
+      .object({
+        icon: z.string().optional(),
+        iconUrl: z.string().optional(),
+        iconImageType: z.string().optional(),
+        color: z.string().optional(),
+        displayLabel: z.string().optional(),
+        displayNameAttribute: z.string().optional(),
+        longDisplayNameAttribute: z.string().optional(),
+        shape: ShapeEnumValues.optional(),
+        backgroundOpacity: z.number().min(0).max(1).optional(),
+        borderWidth: z.number().min(0).optional(),
+        borderColor: z.string().optional(),
+        borderStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -99,36 +143,28 @@ const EdgeStyleSchema = z
     /** Edge line style. */
     lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
     /** Arrow style at the source end. */
-    sourceArrowStyle: z
-      .enum([
-        "triangle",
-        "triangle-tee",
-        "circle-triangle",
-        "triangle-cross",
-        "triangle-backcurve",
-        "tee",
-        "vee",
-        "square",
-        "circle",
-        "diamond",
-        "none",
-      ])
-      .optional(),
+    sourceArrowStyle: ArrowStyleEnumValues.optional(),
     /** Arrow style at the target end. */
-    targetArrowStyle: z
-      .enum([
-        "triangle",
-        "triangle-tee",
-        "circle-triangle",
-        "triangle-cross",
-        "triangle-backcurve",
-        "tee",
-        "vee",
-        "square",
-        "circle",
-        "diamond",
-        "none",
-      ])
+    targetArrowStyle: ArrowStyleEnumValues.optional(),
+    /** Optional single condition that activates the secondary style. */
+    condition: StyleConditionSchema.optional(),
+    /** Style overrides applied when condition is met. All fields optional. */
+    conditionalStyle: z
+      .object({
+        displayLabel: z.string().optional(),
+        displayNameAttribute: z.string().optional(),
+        labelColor: z.string().optional(),
+        labelBackgroundOpacity: z.number().min(0).max(1).optional(),
+        labelBorderColor: z.string().optional(),
+        labelBorderStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+        labelBorderWidth: z.number().min(0).optional(),
+        lineColor: z.string().optional(),
+        lineThickness: z.number().min(0).optional(),
+        lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+        sourceArrowStyle: ArrowStyleEnumValues.optional(),
+        targetArrowStyle: ArrowStyleEnumValues.optional(),
+      })
+      .strict()
       .optional(),
   })
   .strict();
@@ -201,6 +237,19 @@ export function resolveDefaultStyling(data: DefaultStylingData): UserStyling {
       if (style.borderStyle !== undefined)
         resolved.borderStyle = style.borderStyle;
 
+      if (style.condition) {
+        resolved.condition = style.condition;
+      }
+      if (style.conditionalStyle) {
+        const cs = { ...style.conditionalStyle };
+        if (cs.icon && !cs.iconUrl) {
+          cs.iconUrl = toLucideIconRef(cs.icon);
+          cs.iconImageType = "image/svg+xml";
+        }
+        delete (cs as Record<string, unknown>).icon;
+        resolved.conditionalStyle = cs;
+      }
+
       vertices.push(resolved);
     }
   }
@@ -211,6 +260,9 @@ export function resolveDefaultStyling(data: DefaultStylingData): UserStyling {
         type: createEdgeType(typeName),
         ...style,
       };
+      if (style.condition) resolved.condition = style.condition;
+      if (style.conditionalStyle)
+        resolved.conditionalStyle = { ...style.conditionalStyle };
       edges.push(resolved);
     }
   }

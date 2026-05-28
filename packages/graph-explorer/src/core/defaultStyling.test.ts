@@ -384,3 +384,79 @@ describe("userStylingToExportFormat", () => {
     expect(result.vertices?.User).not.toHaveProperty("type");
   });
 });
+
+describe("conditional styling in schema", () => {
+  it("accepts a vertex with a condition and conditionalStyle", () => {
+    const data = {
+      vertices: {
+        Customer: {
+          color: "#0D47A1",
+          condition: {
+            property: "known_bad",
+            operator: "=" as const,
+            value: "true",
+          },
+          conditionalStyle: { color: "#D32F2F", icon: "alert-triangle" },
+        },
+      },
+    };
+    const result = DefaultStylingSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an invalid operator", () => {
+    const data = {
+      vertices: {
+        Customer: {
+          condition: { property: "x", operator: "===", value: "y" },
+        },
+      },
+    };
+    const result = DefaultStylingSchema.safeParse(data);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("resolveDefaultStyling with conditions", () => {
+  it("propagates condition and converts icon shorthand in conditionalStyle", () => {
+    const data = {
+      vertices: {
+        Customer: {
+          condition: {
+            property: "known_bad",
+            operator: "=" as const,
+            value: "true",
+          },
+          conditionalStyle: { icon: "alert-triangle", color: "#D32F2F" },
+        },
+      },
+    };
+    const result = resolveDefaultStyling(data);
+    const v = result.vertices?.[0];
+    expect(v?.condition?.property).toBe("known_bad");
+    expect(v?.conditionalStyle?.iconUrl).toBe("lucide:alert-triangle");
+    expect(v?.conditionalStyle?.color).toBe("#D32F2F");
+  });
+
+  it("round-trips through userStylingToExportFormat", () => {
+    const styling = {
+      vertices: [
+        {
+          type: createVertexType("Customer"),
+          color: "#0D47A1",
+          condition: {
+            property: "known_bad",
+            operator: "=" as const,
+            value: "true",
+          },
+          conditionalStyle: { color: "#D32F2F" },
+        },
+      ],
+    };
+    const exported = userStylingToExportFormat(styling);
+    expect(exported.vertices?.Customer?.condition?.property).toBe("known_bad");
+    expect(exported.vertices?.Customer?.conditionalStyle?.color).toBe(
+      "#D32F2F",
+    );
+  });
+});
