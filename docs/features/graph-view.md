@@ -83,6 +83,7 @@ Each node type can be customized in a variety of ways.
 - **Icon** can be picked from the built-in Lucide library via the **Browse** button, or uploaded as a custom SVG/raster image.
 - **Colors and borders** can be customized to visually distinguish from other node types
 - **Reset to Default** restores this node type's styling. If a styling file has been imported via Settings, the imported values for this type are restored; otherwise the application's hardcoded defaults are used.
+- **Conditional Style** — a single condition can be defined per node type via the **Conditional Style** tab in the styling dialog. When a node's property matches the condition (`property operator value`, e.g. `known_bad = true`), a secondary style (any combination of color, icon, border, shape, opacity, and display properties) overrides the base style in the graph canvas and all previews. The condition and its override are persisted, exported, and imported alongside the base style.
 
 ### Edge Styling Panel
 
@@ -93,6 +94,7 @@ Each edge type can be customized in a variety of ways.
 - **Arrow symbol** can be chosen for both source and target variations
 - **Colors and borders** can be customized for the edge label and the line
 - **Line style** can be solid, dotted, or dashed
+- **Conditional Style** — same as node conditional style above, but applied to edge line color, thickness, style, arrow shapes, and label appearance.
 
 ### Namespace Panel
 
