@@ -8,6 +8,7 @@ import { RESERVED_ID_PROPERTY, RESERVED_TYPES_PROPERTY } from "@/utils";
 import DEFAULT_ICON_URL from "@/utils/defaultIconUrl";
 
 import type { EdgeType, VertexType } from "../entities";
+import type { StyleCondition } from "./conditionalStyling";
 
 import { defaultStylingAtom } from "./defaultStylingAtom";
 import { useActiveSchema } from "./schema";
@@ -84,6 +85,13 @@ export type VertexPreferencesStorageModel = {
   borderWidth?: number;
   borderColor?: string;
   borderStyle?: LineStyle;
+  /** Optional single condition that activates the secondary style. */
+  condition?: StyleCondition;
+  /** Style overrides applied when `condition` is met. All fields optional. */
+  conditionalStyle?: Omit<
+    VertexPreferencesStorageModel,
+    "type" | "condition" | "conditionalStyle"
+  >;
 };
 
 /** The user preferences to be used for the specified edge type as the type used for storing in local storage. */
@@ -101,13 +109,23 @@ export type EdgePreferencesStorageModel = {
   lineStyle?: LineStyle;
   sourceArrowStyle?: ArrowStyle;
   targetArrowStyle?: ArrowStyle;
+  condition?: StyleCondition;
+  conditionalStyle?: Omit<
+    EdgePreferencesStorageModel,
+    "type" | "condition" | "conditionalStyle"
+  >;
 };
 
 /** The user preferences to be used for the specified vertex type as an immutable object. */
 export type VertexPreferences = Simplify<
   Readonly<
     Pick<VertexPreferencesStorageModel, "displayLabel"> &
-      Required<Omit<VertexPreferencesStorageModel, "displayLabel">>
+      Required<
+        Omit<
+          VertexPreferencesStorageModel,
+          "displayLabel" | "condition" | "conditionalStyle"
+        >
+      >
   >
 >;
 
@@ -115,7 +133,12 @@ export type VertexPreferences = Simplify<
 export type EdgePreferences = Simplify<
   Readonly<
     Pick<EdgePreferencesStorageModel, "displayLabel"> &
-      Required<Omit<EdgePreferencesStorageModel, "displayLabel">>
+      Required<
+        Omit<
+          EdgePreferencesStorageModel,
+          "displayLabel" | "condition" | "conditionalStyle"
+        >
+      >
   >
 >;
 
@@ -323,18 +346,67 @@ export function useVertexStyling(type: VertexType) {
         v => v.type === type,
       );
       const withoutCurrent = prev.vertices?.filter(v => v.type !== type) ?? [];
+      const resetEntry = defaultForType
+        ? {
+            ...defaultForType,
+            condition: undefined,
+            conditionalStyle: undefined,
+          }
+        : undefined;
       return {
         ...prev,
-        vertices: defaultForType
-          ? [...withoutCurrent, defaultForType]
-          : withoutCurrent,
+        vertices: resetEntry ? [...withoutCurrent, resetEntry] : withoutCurrent,
       };
     });
+
+  function setConditionalVertexStyle(
+    condition: StyleCondition,
+    style: Omit<
+      VertexPreferencesStorageModel,
+      "type" | "condition" | "conditionalStyle"
+    >,
+  ) {
+    setAllStyling(prev => {
+      const vertices = prev.vertices ?? [];
+      const existingIndex = vertices.findIndex(v => v.type === type);
+      if (existingIndex >= 0) {
+        const updated = [...vertices];
+        updated[existingIndex] = {
+          ...vertices[existingIndex],
+          condition,
+          conditionalStyle: style,
+        };
+        return { ...prev, vertices: updated };
+      }
+      return {
+        ...prev,
+        vertices: [...vertices, { type, condition, conditionalStyle: style }],
+      };
+    });
+  }
+
+  function removeConditionalVertexStyle() {
+    setAllStyling(prev => {
+      const vertices = prev.vertices ?? [];
+      const existingIndex = vertices.findIndex(v => v.type === type);
+      if (existingIndex < 0) return prev;
+      const updated = [...vertices];
+      const {
+        condition: _c,
+        conditionalStyle: _cs,
+        ...rest
+      } = vertices[existingIndex];
+      updated[existingIndex] = rest;
+      return { ...prev, vertices: updated };
+    });
+  }
 
   return {
     vertexStyle,
     setVertexStyle,
     resetVertexStyle,
+    setConditionalVertexStyle,
+    removeConditionalVertexStyle,
   };
 }
 
@@ -376,17 +448,66 @@ export function useEdgeStyling(type: EdgeType) {
       // entry entirely (which falls back to the hardcoded defaults).
       const defaultForType = defaultStyling?.edges?.find(e => e.type === type);
       const withoutCurrent = prev.edges?.filter(e => e.type !== type) ?? [];
+      const resetEntry = defaultForType
+        ? {
+            ...defaultForType,
+            condition: undefined,
+            conditionalStyle: undefined,
+          }
+        : undefined;
       return {
         ...prev,
-        edges: defaultForType
-          ? [...withoutCurrent, defaultForType]
-          : withoutCurrent,
+        edges: resetEntry ? [...withoutCurrent, resetEntry] : withoutCurrent,
       };
     });
+
+  function setConditionalEdgeStyle(
+    condition: StyleCondition,
+    style: Omit<
+      EdgePreferencesStorageModel,
+      "type" | "condition" | "conditionalStyle"
+    >,
+  ) {
+    setAllStyling(prev => {
+      const edges = prev.edges ?? [];
+      const existingIndex = edges.findIndex(e => e.type === type);
+      if (existingIndex >= 0) {
+        const updated = [...edges];
+        updated[existingIndex] = {
+          ...edges[existingIndex],
+          condition,
+          conditionalStyle: style,
+        };
+        return { ...prev, edges: updated };
+      }
+      return {
+        ...prev,
+        edges: [...edges, { type, condition, conditionalStyle: style }],
+      };
+    });
+  }
+
+  function removeConditionalEdgeStyle() {
+    setAllStyling(prev => {
+      const edges = prev.edges ?? [];
+      const existingIndex = edges.findIndex(e => e.type === type);
+      if (existingIndex < 0) return prev;
+      const updated = [...edges];
+      const {
+        condition: _c,
+        conditionalStyle: _cs,
+        ...rest
+      } = edges[existingIndex];
+      updated[existingIndex] = rest;
+      return { ...prev, edges: updated };
+    });
+  }
 
   return {
     edgeStyle,
     setEdgeStyle,
     resetEdgeStyle,
+    setConditionalEdgeStyle,
+    removeConditionalEdgeStyle,
   };
 }

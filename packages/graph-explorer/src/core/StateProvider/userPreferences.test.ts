@@ -2,9 +2,10 @@
 import { useAtomValue } from "jotai";
 import { act } from "react";
 
-import { createEdgeType, createVertexType } from "@/core";
+import { createEdgeType, createVertexType, getAppStore } from "@/core";
 import { DbState, renderHookWithState } from "@/utils/testing";
 
+import { userStylingAtom } from "./storageAtoms";
 import {
   defaultEdgePreferences,
   defaultVertexPreferences,
@@ -449,6 +450,74 @@ describe("default styling", () => {
 
     expect(result.current.edgeStyle.lineColor).toBe("red");
     expect(result.current.edgeStyle.lineThickness).toBe(5);
+  });
+
+  it("should save and retrieve a conditional style", () => {
+    const dbState = new DbState();
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    act(() =>
+      result.current.setConditionalVertexStyle(
+        { property: "known_bad", operator: "=", value: "true" },
+        { color: "#FF0000" },
+      ),
+    );
+
+    const store = getAppStore();
+    const entry = store
+      .get(userStylingAtom)
+      .vertices?.find(v => v.type === "test");
+    expect(entry?.condition?.property).toBe("known_bad");
+    expect(entry?.conditionalStyle?.color).toBe("#FF0000");
+  });
+
+  it("should remove a conditional style", () => {
+    const dbState = new DbState();
+    dbState.addVertexStyle(createVertexType("test"), {
+      color: "#0000FF",
+      condition: { property: "known_bad", operator: "=", value: "true" },
+      conditionalStyle: { color: "#FF0000" },
+    } as any);
+
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    act(() => result.current.removeConditionalVertexStyle());
+
+    const store = getAppStore();
+    const entry = store
+      .get(userStylingAtom)
+      .vertices?.find(v => v.type === "test");
+    expect(entry?.condition).toBeUndefined();
+    expect(entry?.conditionalStyle).toBeUndefined();
+  });
+
+  it("should clear conditional style on reset", () => {
+    const dbState = new DbState();
+    dbState.addVertexStyle(createVertexType("test"), {
+      color: "#0000FF",
+      condition: { property: "known_bad", operator: "=", value: "true" },
+      conditionalStyle: { color: "#FF0000" },
+    } as any);
+
+    const { result } = renderHookWithState(
+      () => useVertexStyling(createVertexType("test")),
+      dbState,
+    );
+
+    act(() => result.current.resetVertexStyle());
+
+    const store = getAppStore();
+    const entry = store
+      .get(userStylingAtom)
+      .vertices?.find(v => v.type === "test");
+    expect(entry?.condition).toBeUndefined();
+    expect(entry?.conditionalStyle).toBeUndefined();
   });
 });
 
