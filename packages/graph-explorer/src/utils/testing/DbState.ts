@@ -1,4 +1,5 @@
 import type { Explorer } from "@/connector";
+import type { StyleCondition } from "@/core/StateProvider/conditionalStyling";
 
 import {
   activeConfigurationAtom,
@@ -177,6 +178,35 @@ export class DbState {
    */
   setDefaultStyling(styling: UserStyling) {
     this.activeDefaultStyling = styling;
+    return this;
+  }
+
+  /**
+   * Sets a conditional style for the given vertex type.
+   * @param type The vertex type to set the conditional style for.
+   * @param condition The condition to apply.
+   * @param style The style to apply when the condition is met.
+   */
+  setConditionalVertexStyle(
+    type: VertexType,
+    condition: StyleCondition,
+    style: Omit<
+      VertexPreferencesStorageModel,
+      "type" | "condition" | "conditionalStyle"
+    >,
+  ) {
+    this.activeStyling.vertices ??= [];
+    const existing = this.activeStyling.vertices.find(v => v.type === type);
+    if (existing) {
+      existing.condition = condition;
+      existing.conditionalStyle = style;
+    } else {
+      this.activeStyling.vertices.push({
+        type,
+        condition,
+        conditionalStyle: style,
+      });
+    }
     return this;
   }
 

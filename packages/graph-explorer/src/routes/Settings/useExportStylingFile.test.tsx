@@ -86,4 +86,29 @@ describe("useExportStylingFile", () => {
 
     saveSpy.mockRestore();
   });
+
+  it("should export condition and conditionalStyle", async () => {
+    const state = new DbState();
+    state.setConditionalVertexStyle(
+      createVertexType("Customer"),
+      { property: "known_bad", operator: "=" as const, value: "true" },
+      { color: "#D32F2F" },
+    );
+
+    const saveSpy = vi.spyOn(fileData, "saveFile").mockResolvedValue(undefined);
+
+    const { result } = renderHookWithState(() => useExportStylingFile(), state);
+
+    await act(async () => {
+      await result.current();
+    });
+
+    const blob = saveSpy.mock.calls[0][0];
+    const text = await blob.text();
+    const parsed = JSON.parse(text);
+    expect(parsed.vertices?.Customer?.condition?.property).toBe("known_bad");
+    expect(parsed.vertices?.Customer?.conditionalStyle?.color).toBe("#D32F2F");
+
+    saveSpy.mockRestore();
+  });
 });

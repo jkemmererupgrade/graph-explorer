@@ -126,4 +126,34 @@ describe("useImportStylingFile", () => {
 
     expect(toast.success).toHaveBeenCalled();
   });
+
+  it("should import condition and conditionalStyle from file", async () => {
+    const state = new DbState();
+    state.activeStyling = {};
+    const { result } = renderHookWithState(() => useImportStylingFile(), state);
+
+    const styling = {
+      vertices: {
+        Customer: {
+          color: "#0D47A1",
+          condition: { property: "known_bad", operator: "=", value: "true" },
+          conditionalStyle: { color: "#D32F2F" },
+        },
+      },
+    };
+
+    const file = new File([JSON.stringify(styling)], "styling.json", {
+      type: "application/json",
+    });
+
+    await act(async () => {
+      await result.current(file);
+    });
+
+    const store = getAppStore();
+    const imported = store.get(userStylingAtom);
+    const vertex = imported.vertices?.find(v => v.type === "Customer");
+    expect(vertex?.condition?.property).toBe("known_bad");
+    expect(vertex?.conditionalStyle?.color).toBe("#D32F2F");
+  });
 });
