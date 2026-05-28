@@ -519,6 +519,89 @@ describe("default styling", () => {
     expect(entry?.condition).toBeUndefined();
     expect(entry?.conditionalStyle).toBeUndefined();
   });
+
+  it("should save and retrieve a conditional edge style", () => {
+    const dbState = new DbState();
+    const { result } = renderHookWithState(
+      () => useEdgeStyling(createEdgeType("test")),
+      dbState,
+    );
+
+    act(() =>
+      result.current.setConditionalEdgeStyle(
+        { property: "active", operator: "=", value: "false" },
+        { lineColor: "#FF0000" },
+      ),
+    );
+
+    const store = getAppStore();
+    const entry = store
+      .get(userStylingAtom)
+      .edges?.find(e => e.type === "test");
+    expect(entry?.condition?.property).toBe("active");
+    expect(entry?.conditionalStyle?.lineColor).toBe("#FF0000");
+  });
+
+  it("should save conditional edge style when no prior entry exists", () => {
+    const dbState = new DbState();
+    const { result } = renderHookWithState(
+      () => useEdgeStyling(createEdgeType("newtype")),
+      dbState,
+    );
+
+    act(() =>
+      result.current.setConditionalEdgeStyle(
+        { property: "weight", operator: ">", value: "5" },
+        { lineThickness: 4 },
+      ),
+    );
+
+    const store = getAppStore();
+    const entry = store
+      .get(userStylingAtom)
+      .edges?.find(e => e.type === "newtype");
+    expect(entry?.condition?.property).toBe("weight");
+    expect(entry?.conditionalStyle?.lineThickness).toBe(4);
+  });
+
+  it("should remove a conditional edge style", () => {
+    const dbState = new DbState();
+    dbState.addEdgeStyle(createEdgeType("test"), {
+      lineColor: "#0000FF",
+      condition: { property: "active", operator: "=", value: "false" },
+      conditionalStyle: { lineColor: "#FF0000" },
+    } as any);
+
+    const { result } = renderHookWithState(
+      () => useEdgeStyling(createEdgeType("test")),
+      dbState,
+    );
+
+    act(() => result.current.removeConditionalEdgeStyle());
+
+    const store = getAppStore();
+    const entry = store
+      .get(userStylingAtom)
+      .edges?.find(e => e.type === "test");
+    expect(entry?.condition).toBeUndefined();
+    expect(entry?.conditionalStyle).toBeUndefined();
+  });
+
+  it("should be a no-op when removing conditional edge style that does not exist", () => {
+    const dbState = new DbState();
+    const { result } = renderHookWithState(
+      () => useEdgeStyling(createEdgeType("test")),
+      dbState,
+    );
+
+    const store = getAppStore();
+    const before = store.get(userStylingAtom);
+
+    act(() => result.current.removeConditionalEdgeStyle());
+
+    const after = store.get(userStylingAtom);
+    expect(after).toStrictEqual(before);
+  });
 });
 
 describe("mergeDefaultsIntoUserStyling", () => {
