@@ -1,7 +1,5 @@
 export type ConditionOperator = "=" | "!=" | ">" | "<" | ">=" | "<=";
 
-export const NUMERIC_OPERATORS: ConditionOperator[] = [">", "<", ">=", "<="];
-
 /**
  * A single condition that triggers the secondary style.
  * `value` is always stored as a string; coercion to the right
@@ -54,11 +52,6 @@ export function buildConditionalEdgeSelector(
   dataType: string | undefined,
 ): string {
   return `edge[type="${edgeType}"]${buildConditionSelector(condition, dataType)}`;
-}
-
-/** Returns true if the operator is only valid for numeric/date comparisons. */
-export function isNumericOperator(op: ConditionOperator): boolean {
-  return NUMERIC_OPERATORS.includes(op);
 }
 
 /**
