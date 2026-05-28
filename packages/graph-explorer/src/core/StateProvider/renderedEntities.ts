@@ -7,6 +7,7 @@ import {
   type DisplayVertex,
   edgesFilteredIdsAtom,
   edgesTypesFilteredAtom,
+  type EntityPropertyValue,
   type EntityRawId,
   nodesFilteredIdsAtom,
   nodesTypesFilteredAtom,
@@ -18,14 +19,31 @@ import {
 
 import type { EdgeId } from "../entities/edge";
 
+import { PROP_PREFIX } from "./conditionalStyling";
+
 /** A string representation of a vertex ID that encodes the original type. Cytoscape requires IDs to be strings. */
 export type RenderedVertexId = Branded<string, "RenderedVertexId">;
 
 /** A string representation of an edge ID that encodes the original type. Cytoscape requires IDs to be strings. */
 export type RenderedEdgeId = Branded<string, "RenderedEdgeId">;
 
+/**
+ * The data payload stored in a Cytoscape vertex element.
+ * The index signature allows conditional-styling selectors to access
+ * source vertex attributes via `prop_*` prefixed keys.
+ */
+export type RenderedVertexData = {
+  id: RenderedVertexId;
+  type: string;
+  vertexId: VertexId;
+  displayName: string;
+  displayTypes: string;
+  neighborCount: number;
+  [key: string]: EntityPropertyValue | RenderedVertexId | VertexId;
+};
+
 /** A representation of a vertex that Cytoscape can use. */
-export type RenderedVertex = ReturnType<typeof createRenderedVertex>;
+export type RenderedVertex = { data: RenderedVertexData };
 
 /** A representation of an edge that Cytoscape can use. */
 export type RenderedEdge = ReturnType<typeof createRenderedEdge>;
@@ -166,17 +184,22 @@ function stripIdTypePrefix(id: string): string {
  * - The `id` property is a string
  * - There exists a `data` property where any custom data is stored
  */
-function createRenderedVertex(vertex: DisplayVertex, neighborCount: number) {
-  return {
-    data: {
-      id: createRenderedVertexId(vertex.id),
-      type: vertex.primaryType,
-      vertexId: vertex.id,
-      displayName: vertex.displayName,
-      displayTypes: vertex.displayTypes,
-      neighborCount,
-    },
+function createRenderedVertex(
+  vertex: DisplayVertex,
+  neighborCount: number,
+): RenderedVertex {
+  const data: RenderedVertexData = {
+    id: createRenderedVertexId(vertex.id),
+    type: vertex.primaryType,
+    vertexId: vertex.id,
+    displayName: vertex.displayName,
+    displayTypes: vertex.displayTypes,
+    neighborCount,
   };
+  for (const [k, v] of Object.entries(vertex.original.attributes)) {
+    data[`${PROP_PREFIX}${k}`] = v;
+  }
+  return { data };
 }
 
 /**

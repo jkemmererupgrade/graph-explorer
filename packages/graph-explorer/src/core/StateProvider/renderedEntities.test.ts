@@ -22,6 +22,7 @@ import {
   type RenderedEdgeId,
   type RenderedVertexId,
   useRenderedEntities,
+  useRenderedVertices,
 } from "./renderedEntities";
 
 describe("createRenderedVertexId", () => {
@@ -135,6 +136,25 @@ describe("useRenderedVertices", () => {
     await waitFor(() => {
       const vertexIds = result.current.vertices.map(v => v.data.vertexId);
       expect(vertexIds).toStrictEqual([vertex3.id]);
+    });
+  });
+
+  it("exposes vertex attributes as prop_ prefixed keys in Cytoscape data", async () => {
+    const vertex = createTestableVertex().with({
+      attributes: { known_bad: true, score: 42 },
+    });
+    const dbState = new DbState();
+    dbState.addTestableVertexToGraph(vertex);
+
+    const { result } = renderHookWithJotai(
+      () => useRenderedVertices(),
+      store => dbState.applyTo(store),
+    );
+
+    await waitFor(() => {
+      const element = result.current.find(v => v.data.vertexId === vertex.id);
+      expect(element?.data["prop_known_bad"]).toBe(true);
+      expect(element?.data["prop_score"]).toBe(42);
     });
   });
 });
