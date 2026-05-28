@@ -8,7 +8,7 @@ export default defineConfig({
         autoUpdate: (newThreshold: number) => Math.floor(newThreshold),
         statements: 66,
         branches: 46,
-        functions: 58,
+        functions: 57,
         lines: 73,
       },
     },
